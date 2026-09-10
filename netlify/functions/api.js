@@ -1,8 +1,13 @@
 // Same API as server.js, adapted for Netlify Functions + Netlify Blobs.
 // Set an EDIT_KEY environment variable in your Netlify site settings to protect
 // the editor — without it, anyone who finds /editor can make changes.
+//
+// IMPORTANT: this file uses the classic Lambda-compatible handler style
+// (`exports.handler`). Netlify Blobs does NOT auto-configure itself in that
+// mode — connectLambda(event) must be called first, or every getStore() call
+// throws MissingBlobsEnvironmentError (which is what was causing the 500s).
 
-const { getStore } = require('@netlify/blobs');
+const { getStore, connectLambda } = require('@netlify/blobs');
 
 const EDIT_KEY = process.env.EDIT_KEY || '';
 
@@ -31,6 +36,8 @@ function hasValidKey(event) {
 }
 
 exports.handler = async (event) => {
+  connectLambda(event); // must run before any getStore() call — see note above
+
   const method = event.httpMethod;
   const segments = (event.path || '')
     .replace(/^\/(\.netlify\/functions\/api|api)\/?/, '')

@@ -2,91 +2,119 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>360 Tour</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   :root{
     --bg: #12151a;
     --panel: #1b1f26;
-    --panel-hi: #232833;
-    --line: #2a303b;
     --text: #e9e7e0;
     --text-dim: #8d94a1;
     --accent: #c08a4e;
     --radius: 3px;
   }
-  *{ box-sizing: border-box; }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html,body{ height:100%; margin:0; }
   body{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
     overflow: hidden;
-  }
-  #app{ display:flex; height:100vh; width:100vw; }
-
-  #sidebar{
-    width: 232px; min-width: 232px;
-    background: var(--panel);
-    border-right: 1px solid var(--line);
-    display:flex; flex-direction: column;
-    z-index: 5;
+    overscroll-behavior: none;
   }
   #conn-banner{
+    position: absolute; top: 0; left: 0; right: 0; z-index: 40;
     background: #4a3420; border-bottom: 1px solid #8a6539; color: #f0d9b8;
-    font-size: 12px; line-height: 1.5; padding: 10px 16px;
+    font-size: 12px; line-height: 1.5; padding: 10px 16px; text-align: center;
   }
-  #sidebar-head{ padding: 18px 16px 14px 16px; border-bottom: 1px solid var(--line); }
-  #project-name{ font-size: 15px; font-weight: 600; letter-spacing: 0.2px; margin: 0 0 6px 0; }
-  #project-desc{ font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.5; }
-  #scene-list{ flex: 1; overflow-y: auto; padding: 8px 8px; }
-  .scene-row{
-    display:flex; align-items:center; gap: 8px;
-    padding: 9px 10px; border-radius: var(--radius);
-    cursor: pointer; margin-bottom: 2px;
-    border: 1px solid transparent;
-  }
-  .scene-row:hover{ background: var(--panel-hi); }
-  .scene-row.active{ background: var(--panel-hi); border-color: #8a6539; }
-  .scene-dot{ width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
-  .scene-row.active .scene-dot{ background: var(--accent); }
-  .scene-name{ flex: 1; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  #empty-state{ flex:1; display:flex; align-items:center; justify-content:center; padding: 40px; }
-  #empty-inner{ max-width: 320px; text-align: left; }
-  #empty-inner h2{ font-size: 18px; font-weight: 600; margin: 0 0 8px 0; }
-  #empty-inner p{ font-size: 13.5px; color: var(--text-dim); line-height: 1.55; margin: 0; }
-
-  #viewer-wrap{ flex: 1; position: relative; background: #000; }
-  #canvas-host{ position: absolute; inset: 0; }
+  #viewer-wrap{ position: relative; width: 100vw; height: 100vh; background: #000; }
+  #canvas-host{ position: absolute; inset: 0; touch-action: none; }
   #canvas-host canvas{ display:block; cursor: grab; }
   #canvas-host.dragging canvas{ cursor: grabbing; }
 
-  #topbar{
-    position: absolute; top: 0; left: 0; right: 0;
-    display:flex; align-items:center; padding: 16px 20px; z-index: 4; pointer-events: none;
+  /* ---------- Empty state ---------- */
+  #empty-state{
+    position: absolute; inset: 0; display:flex; align-items:center; justify-content:center; padding: 40px;
   }
-  #scene-label{
-    font-size: 14px; font-weight: 600; background: rgba(18,21,26,0.55);
-    padding: 7px 12px; border-radius: var(--radius); backdrop-filter: blur(6px);
-  }
+  #empty-inner{ max-width: 320px; text-align: center; }
+  #empty-inner h2{ font-size: 18px; font-weight: 600; margin: 0 0 8px 0; }
+  #empty-inner p{ font-size: 13.5px; color: var(--text-dim); line-height: 1.55; margin: 0; }
 
+  /* ---------- Top overlays ---------- */
+  #floorplan-wrap{
+    position: absolute; top: 16px; left: 16px; z-index: 5;
+    max-width: 190px; pointer-events: none;
+    filter: drop-shadow(0 2px 10px rgba(0,0,0,0.6));
+  }
+  #floorplan-wrap img{ display:block; width: 100%; height: auto; }
+
+  #project-chip{
+    position: absolute; top: 16px; right: 16px; z-index: 5;
+    background: rgba(18,21,26,0.55); backdrop-filter: blur(6px);
+    padding: 8px 13px; border-radius: var(--radius);
+    max-width: 46%; text-align: right; pointer-events: none;
+  }
+  #project-chip .pname{ font-size: 14px; font-weight: 600; margin: 0; }
+  #project-chip .pdesc{ font-size: 11.5px; color: var(--text-dim); margin: 3px 0 0 0; line-height: 1.4; }
+
+  /* ---------- Hint ---------- */
   #hint{
-    position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
     font-size: 12px; color: var(--text-dim); background: rgba(18,21,26,0.55);
     padding: 6px 12px; border-radius: var(--radius); backdrop-filter: blur(6px);
-    pointer-events: none; text-align: center; max-width: 80%;
+    pointer-events: none; text-align: center; max-width: 60%; z-index: 5;
+  }
+
+  /* ---------- Gyro toggle ---------- */
+  #gyro-btn{
+    position: absolute; z-index: 6;
+    right: 16px; bottom: 118px;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(18,21,26,0.65); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text); font-size: 20px;
+    display:flex; align-items:center; justify-content:center;
+    cursor: pointer;
+  }
+  #gyro-btn.active{ background: var(--accent); color: #1a1408; border-color: var(--accent); }
+  #gyro-btn.hidden{ display:none; }
+
+  /* ---------- Bottom thumbnail strip ---------- */
+  #thumb-strip{
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+    display:flex; gap: 10px; padding: 14px 16px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    background: linear-gradient(to top, rgba(0,0,0,0.65), rgba(0,0,0,0));
+  }
+  #thumb-strip::-webkit-scrollbar{ height: 5px; }
+  #thumb-strip::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+  .thumb{
+    position: relative; flex: 0 0 auto;
+    width: 108px; height: 68px; border-radius: 4px; overflow: hidden;
+    border: 2px solid rgba(255,255,255,0.25);
+    cursor: pointer;
+    opacity: 0.75;
+  }
+  .thumb.active{ border-color: var(--accent); opacity: 1; }
+  .thumb img{ width: 100%; height: 100%; object-fit: cover; display:block; }
+  .thumb .thumb-label{
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0));
+    color: #fff; font-size: 10.5px; padding: 3px 6px 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
   #loading{
     position: absolute; inset: 0; display:flex; align-items:center; justify-content:center;
-    color: var(--text-dim); font-size: 13px; background: rgba(0,0,0,0.35); z-index: 6;
+    color: var(--text-dim); font-size: 13px; background: rgba(0,0,0,0.35); z-index: 20;
   }
   .hidden{ display:none !important; }
 
   #toast{
-    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
     background: var(--accent); color: #1a1408; font-size: 12.5px; padding: 8px 14px;
     border-radius: var(--radius); z-index: 30; opacity: 0; transition: opacity 0.25s ease;
     pointer-events: none; max-width: 70%; text-align: center;
@@ -96,42 +124,46 @@
   #fade{ position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 3; }
   #fade.on{ opacity: 1; }
 
-  ::-webkit-scrollbar{ width: 8px; }
-  ::-webkit-scrollbar-thumb{ background: var(--panel-hi); border-radius: 4px; }
-  ::-webkit-scrollbar-track{ background: transparent; }
+  /* ---------- Mobile ---------- */
+  @media (max-width: 640px){
+    #floorplan-wrap{ max-width: 110px; top: 12px; left: 12px; }
+    #project-chip{ top: 12px; right: 12px; padding: 6px 10px; max-width: 52%; }
+    #project-chip .pname{ font-size: 12.5px; }
+    #project-chip .pdesc{ display: none; }
+    #hint{ font-size: 11px; max-width: 80%; }
+    .thumb{ width: 84px; height: 54px; }
+    #thumb-strip{ padding: 10px 10px; gap: 8px; }
+    #gyro-btn{ bottom: 96px; right: 12px; width: 44px; height: 44px; }
+  }
 </style>
 </head>
 <body>
 
-<div id="app">
-  <div id="sidebar">
-    <div id="conn-banner" class="hidden"></div>
-    <div id="sidebar-head">
-      <p id="project-name">360 Tour</p>
-      <p id="project-desc"></p>
+<div id="conn-banner" class="hidden"></div>
+
+<div id="viewer-wrap">
+  <div id="empty-state">
+    <div id="empty-inner">
+      <h2>Tour not ready yet</h2>
+      <p>No photos have been added to this tour yet. Check back once the editor has uploaded some scenes.</p>
     </div>
-    <div id="scene-list"></div>
   </div>
 
-  <div id="viewer-wrap">
-    <div id="empty-state">
-      <div id="empty-inner">
-        <h2>Tour not ready yet</h2>
-        <p>No photos have been added to this tour yet. Check back once the editor has uploaded some scenes.</p>
-      </div>
-    </div>
+  <div id="canvas-host" class="hidden"></div>
+  <div id="fade"></div>
 
-    <div id="canvas-host" class="hidden"></div>
-    <div id="fade"></div>
-
-    <div id="topbar" class="hidden">
-      <span id="scene-label"></span>
-    </div>
-
-    <div id="hint" class="hidden"></div>
-    <div id="loading" class="hidden">Loading panorama…</div>
-    <div id="toast"></div>
+  <div id="floorplan-wrap" class="hidden"><img id="floorplan-img" alt="Floor plan"></div>
+  <div id="project-chip" class="hidden">
+    <p class="pname" id="project-name"></p>
+    <p class="pdesc" id="project-desc"></p>
   </div>
+  <div id="hint" class="hidden"></div>
+  <button id="gyro-btn" class="hidden" title="Look around by moving your phone">&#8635;</button>
+
+  <div id="thumb-strip" class="hidden"></div>
+
+  <div id="loading" class="hidden">Loading panorama…</div>
+  <div id="toast"></div>
 </div>
 
 <script>
@@ -148,7 +180,6 @@
       return { ok: false };
     }
   }
-
   function showConnBanner(msg){
     const b = document.getElementById('conn-banner');
     b.textContent = msg;
@@ -156,22 +187,24 @@
   }
 
   /* ---------------- State ---------------- */
-  let meta = { name: '360 Tour', description: '', order: [] };
+  let meta = { name: '360 Tour', description: '', hasFloorPlan: false, order: [] };
   let scenes = {};
   let currentId = null;
 
   /* ---------------- DOM refs ---------------- */
-  const sceneListEl = document.getElementById('scene-list');
   const emptyStateEl = document.getElementById('empty-state');
   const canvasHost = document.getElementById('canvas-host');
-  const topbar = document.getElementById('topbar');
-  const sceneLabel = document.getElementById('scene-label');
   const hintEl = document.getElementById('hint');
   const loadingEl = document.getElementById('loading');
   const fadeEl = document.getElementById('fade');
   const toastEl = document.getElementById('toast');
+  const projectChip = document.getElementById('project-chip');
   const projectNameEl = document.getElementById('project-name');
   const projectDescEl = document.getElementById('project-desc');
+  const floorplanWrap = document.getElementById('floorplan-wrap');
+  const floorplanImg = document.getElementById('floorplan-img');
+  const thumbStrip = document.getElementById('thumb-strip');
+  const gyroBtn = document.getElementById('gyro-btn');
 
   function toast(msg){
     toastEl.textContent = msg;
@@ -187,50 +220,67 @@
       showConnBanner('Can\u2019t reach the tour server right now. Please try again shortly.');
       return;
     }
-    meta = { name: res.data.name, description: res.data.description || '', order: res.data.order || [] };
+    meta = {
+      name: res.data.name,
+      description: res.data.description || '',
+      hasFloorPlan: !!res.data.hasFloorPlan,
+      order: res.data.order || []
+    };
     scenes = res.data.scenes || {};
+    document.title = meta.name;
+
     projectNameEl.textContent = meta.name;
     projectDescEl.textContent = meta.description;
     projectDescEl.classList.toggle('hidden', !meta.description);
-    document.title = meta.name;
+    projectChip.classList.remove('hidden');
 
-    renderSidebar();
+    if (meta.hasFloorPlan){
+      floorplanImg.src = '/api/floorplan?v=' + Date.now();
+      floorplanWrap.classList.remove('hidden');
+    }
+
+    renderThumbs();
     if (meta.order.length){
       currentId = meta.order[0];
       await enterScene(currentId, false);
     }
+
+    if (window.DeviceOrientationEvent){
+      gyroBtn.classList.remove('hidden');
+    }
   }
 
-  /* ---------------- Sidebar (read-only) ---------------- */
-  function renderSidebar(){
-    sceneListEl.innerHTML = '';
+  /* ---------------- Bottom thumbnail strip ---------------- */
+  function renderThumbs(){
+    thumbStrip.innerHTML = '';
+    if (!meta.order.length){ thumbStrip.classList.add('hidden'); return; }
+    thumbStrip.classList.remove('hidden');
     meta.order.forEach(id => {
       const s = scenes[id];
       if (!s) return;
-      const row = document.createElement('div');
-      row.className = 'scene-row' + (id === currentId ? ' active' : '');
-      const dot = document.createElement('div');
-      dot.className = 'scene-dot';
-      const name = document.createElement('div');
-      name.className = 'scene-name';
-      name.textContent = s.name;
-      row.appendChild(dot);
-      row.appendChild(name);
-      row.addEventListener('click', () => { if (id !== currentId) switchScene(id); });
-      sceneListEl.appendChild(row);
+      const el = document.createElement('div');
+      el.className = 'thumb' + (id === currentId ? ' active' : '');
+      const img = document.createElement('img');
+      img.src = '/api/images/' + id;
+      img.loading = 'lazy';
+      const label = document.createElement('div');
+      label.className = 'thumb-label';
+      label.textContent = s.name;
+      el.appendChild(img);
+      el.appendChild(label);
+      el.addEventListener('click', () => { if (id !== currentId) switchScene(id); });
+      thumbStrip.appendChild(el);
     });
   }
 
   function showEmpty(){
     emptyStateEl.classList.remove('hidden');
     canvasHost.classList.add('hidden');
-    topbar.classList.add('hidden');
     hintEl.classList.add('hidden');
   }
   function showViewer(){
     emptyStateEl.classList.add('hidden');
     canvasHost.classList.remove('hidden');
-    topbar.classList.remove('hidden');
     hintEl.classList.remove('hidden');
   }
 
@@ -287,6 +337,7 @@
   }
   function onPointerMove(e){
     if (!isPointerDown){ updateHoverCursor(e); return; }
+    if (gyroEnabled) return; // gyro owns the look direction while active
     const dx = e.clientX - downX, dy = e.clientY - downY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
     targetLon -= dx * 0.13;
@@ -312,13 +363,11 @@
     raycaster.setFromCamera(mouse, camera);
     return raycaster.intersectObjects(hotspotSprites.map(h => h.mesh));
   }
-
   function updateHoverCursor(e){
     if (!hotspotSprites.length){ renderer.domElement.style.cursor = 'grab'; return; }
     const hits = hotspotHitsAt(e.clientX, e.clientY);
     renderer.domElement.style.cursor = hits.length ? 'pointer' : 'grab';
   }
-
   function handleClick(clientX, clientY){
     const hits = hotspotHitsAt(clientX, clientY);
     if (hits.length){
@@ -414,11 +463,10 @@
     await loadTextureForCurrent();
     buildHotspots();
     lon = targetLon; lat = targetLat = 0; targetLon = lon;
-    sceneLabel.textContent = scenes[id].name;
     updateHint();
     loadingEl.classList.add('hidden');
     if (doFade) setTimeout(() => fadeEl.classList.remove('on'), 30);
-    renderSidebar();
+    renderThumbs();
   }
 
   async function switchScene(id){
@@ -429,12 +477,57 @@
   }
 
   function updateHint(){
+    if (gyroEnabled){
+      hintEl.textContent = 'Move your phone to look around · tap a marker to move to that room';
+      return;
+    }
     const s = scenes[currentId];
     const hasHotspots = s && s.hotspots && s.hotspots.length;
     hintEl.textContent = hasHotspots
-      ? 'Drag to look around · click a marker to move to that room'
+      ? 'Drag to look around · tap a marker to move to that room'
       : 'Drag to look around · scroll to zoom';
   }
+
+  /* ---------------- Gyroscope look control ---------------- */
+  let gyroEnabled = false;
+  let gyroBaseAlpha = null, gyroBaseBeta = null, gyroStartLon = 0, gyroStartLat = 0;
+
+  function onDeviceOrientation(e){
+    if (e.alpha === null || e.alpha === undefined) return;
+    if (gyroBaseAlpha === null){
+      gyroBaseAlpha = e.alpha;
+      gyroBaseBeta = e.beta || 0;
+      gyroStartLon = targetLon;
+      gyroStartLat = targetLat;
+    }
+    let deltaAlpha = e.alpha - gyroBaseAlpha;
+    if (deltaAlpha > 180) deltaAlpha -= 360;
+    if (deltaAlpha < -180) deltaAlpha += 360;
+    const deltaBeta = (e.beta || 0) - gyroBaseBeta;
+    targetLon = gyroStartLon - deltaAlpha;
+    targetLat = Math.max(-85, Math.min(85, gyroStartLat + deltaBeta));
+  }
+
+  async function enableGyro(){
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+      try{
+        const state = await DeviceOrientationEvent.requestPermission();
+        if (state !== 'granted'){ toast('Motion access was not granted.'); return; }
+      } catch(e){ toast('Could not request motion access.'); return; }
+    }
+    gyroBaseAlpha = null;
+    gyroEnabled = true;
+    gyroBtn.classList.add('active');
+    window.addEventListener('deviceorientation', onDeviceOrientation);
+    updateHint();
+  }
+  function disableGyro(){
+    gyroEnabled = false;
+    gyroBtn.classList.remove('active');
+    window.removeEventListener('deviceorientation', onDeviceOrientation);
+    updateHint();
+  }
+  gyroBtn.addEventListener('click', () => { gyroEnabled ? disableGyro() : enableGyro(); });
 
   /* ---------------- Boot ---------------- */
   loadAll();

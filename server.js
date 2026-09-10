@@ -1,5 +1,7 @@
 // 360 Tour Builder — self-hosted server (Raspberry Pi, a NAS, a laptop, anywhere Node runs).
-// Stores the tour structure in data/tour.json and photos as plain JPEG files in data/images/.
+// Stores the tour structure in data/tour.json, 360 photos as JPEGs in data/images/,
+// and an optional floor plan as data/images/floorplan.png (kept as PNG to preserve
+// transparency).
 //
 // Two frontends are served from the same backend:
 //   /          -> public/index.html   (read-only viewer — safe to share with anyone)
@@ -18,16 +20,18 @@ const crypto = require('crypto');
 const DATA_DIR = path.join(__dirname, 'data');
 const IMAGES_DIR = path.join(DATA_DIR, 'images');
 const DB_FILE = path.join(DATA_DIR, 'tour.json');
+const FLOORPLAN_FILE = path.join(IMAGES_DIR, 'floorplan.png');
 const EDIT_KEY = process.env.EDIT_KEY || '';
 
 fs.mkdirSync(IMAGES_DIR, { recursive: true });
 if (!fs.existsSync(DB_FILE)) {
-  fs.writeFileSync(DB_FILE, JSON.stringify({ name: '360 Tour', description: '', order: [], scenes: {} }, null, 2));
+  fs.writeFileSync(DB_FILE, JSON.stringify({ name: '360 Tour', description: '', hasFloorPlan: false, order: [], scenes: {} }, null, 2));
 }
 
 function readDB() {
   const db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
   if (typeof db.description !== 'string') db.description = '';
+  if (typeof db.hasFloorPlan !== 'boolean') db.hasFloorPlan = false;
   return db;
 }
 function writeDB(db) {
@@ -49,7 +53,7 @@ app.get('/editor', (req, res) => res.sendFile(path.join(__dirname, 'public', 'ed
 
 app.get('/api/state', (req, res) => {
   const db = readDB();
-  res.json({ name: db.name, description: db.description, order: db.order, scenes: db.scenes });
+  res.json({ name: db.name, description: db.description, hasFloorPlan: db.hasFloorPlan, order: db.order, scenes: db.scenes });
 });
 
 app.get('/api/images/:id', (req, res) => {
@@ -57,6 +61,12 @@ app.get('/api/images/:id', (req, res) => {
   if (!fs.existsSync(p)) return res.status(404).end();
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   res.sendFile(p);
+});
+
+app.get('/api/floorplan', (req, res) => {
+  if (!fs.existsSync(FLOORPLAN_FILE)) return res.status(404).end();
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.sendFile(FLOORPLAN_FILE);
 });
 
 // --- Write endpoints (edit key required if one is configured) ---
@@ -68,6 +78,27 @@ app.patch('/api/tour', requireEditKey, (req, res) => {
   if (typeof description === 'string') db.description = description.trim();
   writeDB(db);
   res.json({ name: db.name, description: db.description });
+});
+
+app.post('/api/floorplan', requireEditKey, (req, res) => {
+  const { dataUrl } = req.body || {};
+  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+    return res.status(400).json({ error: 'invalid-image' });
+  }
+  const buffer = Buffer.from(dataUrl.split(',')[1], 'base64');
+  fs.writeFileSync(FLOORPLAN_FILE, buffer);
+  const db = readDB();
+  db.hasFloorPlan = true;
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.delete('/api/floorplan', requireEditKey, (req, res) => {
+  if (fs.existsSync(FLOORPLAN_FILE)) fs.unlinkSync(FLOORPLAN_FILE);
+  const db = readDB();
+  db.hasFloorPlan = false;
+  writeDB(db);
+  res.json({ ok: true });
 });
 
 app.post('/api/scenes', requireEditKey, (req, res) => {
@@ -145,7 +176,8 @@ app.delete('/api/tour', requireEditKey, (req, res) => {
     const p = path.join(IMAGES_DIR, id + '.jpg');
     if (fs.existsSync(p)) fs.unlinkSync(p);
   });
-  writeDB({ name: '360 Tour', description: '', order: [], scenes: {} });
+  if (fs.existsSync(FLOORPLAN_FILE)) fs.unlinkSync(FLOORPLAN_FILE);
+  writeDB({ name: '360 Tour', description: '', hasFloorPlan: false, order: [], scenes: {} });
   res.json({ ok: true });
 });
 

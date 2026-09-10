@@ -11,6 +11,25 @@ Two pages, one tour:
 Both pages talk to the same backend, so anything you do in the editor shows up in
 the viewer immediately.
 
+## What's new in this version
+
+- **Bottom thumbnail strip.** The viewer now shows a scrollable row of room
+  thumbnails along the bottom, with the current one highlighted — click any
+  thumbnail to jump straight there.
+- **Floor plan overlay.** In the editor sidebar, under "Floor plan (optional)",
+  attach a single image (ideally a transparent PNG) and it appears as a small
+  overlay in the top-left corner of both the editor and the public viewer.
+  Replace or remove it any time.
+- **Mobile-friendly layout.** The viewer works full-screen on phones, with
+  larger touch targets and a layout that adapts to narrow screens. The editor's
+  sidebar stacks above the viewer on small screens instead of squeezing it.
+- **Gyroscope look control.** On phones that support it, a compass button
+  appears bottom-right in the viewer. Tap it (iPhones will ask for a one-time
+  motion permission) to look around by physically moving the phone instead of
+  dragging. Tap again to go back to drag mode. This is a best-effort
+  implementation — it calibrates from wherever you're facing when you tap the
+  button, so it may need a re-tap if it feels off after rotating a lot.
+
 ## Setting an edit key (recommended)
 
 Without an edit key, anyone who finds `/editor` can edit the tour. Set one before

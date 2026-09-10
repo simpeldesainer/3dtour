@@ -2,22 +2,23 @@
 // Set an EDIT_KEY environment variable in your Netlify site settings to protect
 // the editor — without it, anyone who finds /editor can make changes.
 //
-// IMPORTANT: this file uses the classic Lambda-compatible handler style
-// (`exports.handler`). Netlify Blobs does NOT auto-configure itself in that
-// mode — connectLambda(event) must be called first, or every getStore() call
-// throws MissingBlobsEnvironmentError (which is what was causing the 500s).
+// Uses the classic Lambda-compatible handler style (`exports.handler`), so
+// connectLambda(event) must run before any getStore() call, or Blobs throws
+// MissingBlobsEnvironmentError.
 
 const { getStore, connectLambda } = require('@netlify/blobs');
 
 const EDIT_KEY = process.env.EDIT_KEY || '';
+const FLOORPLAN_KEY = 'floorplan';
 
 function dbStore() { return getStore('tour-db'); }
 function imageStore() { return getStore('tour-images'); }
 
 async function readDB() {
   const raw = await dbStore().get('state', { type: 'json' });
-  const data = raw || { name: '360 Tour', description: '', order: [], scenes: {} };
+  const data = raw || { name: '360 Tour', description: '', hasFloorPlan: false, order: [], scenes: {} };
   if (typeof data.description !== 'string') data.description = '';
+  if (typeof data.hasFloorPlan !== 'boolean') data.hasFloorPlan = false;
   return data;
 }
 async function writeDB(data) {
@@ -63,6 +64,39 @@ exports.handler = async (event) => {
       if (typeof description === 'string') data.description = description.trim();
       await writeDB(data);
       return json(200, { name: data.name, description: data.description });
+    }
+
+    // POST /api/floorplan
+    if (segments[0] === 'floorplan' && segments.length === 1 && method === 'POST') {
+      const { dataUrl } = JSON.parse(event.body || '{}');
+      if (!dataUrl || !dataUrl.startsWith('data:image/')) return json(400, { error: 'invalid-image' });
+      const buffer = Buffer.from(dataUrl.split(',')[1], 'base64');
+      await imageStore().set(FLOORPLAN_KEY, buffer);
+      const data = await readDB();
+      data.hasFloorPlan = true;
+      await writeDB(data);
+      return json(200, { ok: true });
+    }
+
+    // DELETE /api/floorplan
+    if (segments[0] === 'floorplan' && segments.length === 1 && method === 'DELETE') {
+      await imageStore().delete(FLOORPLAN_KEY);
+      const data = await readDB();
+      data.hasFloorPlan = false;
+      await writeDB(data);
+      return json(200, { ok: true });
+    }
+
+    // GET /api/floorplan
+    if (segments[0] === 'floorplan' && segments.length === 1 && method === 'GET') {
+      const buf = await imageStore().get(FLOORPLAN_KEY, { type: 'arrayBuffer' });
+      if (!buf) return { statusCode: 404, body: 'Not found' };
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' },
+        body: Buffer.from(buf).toString('base64'),
+        isBase64Encoded: true
+      };
     }
 
     // POST /api/scenes
@@ -142,7 +176,8 @@ exports.handler = async (event) => {
     if (segments[0] === 'tour' && method === 'DELETE') {
       const data = await readDB();
       for (const id of data.order) await imageStore().delete(id);
-      await writeDB({ name: '360 Tour', description: '', order: [], scenes: {} });
+      await imageStore().delete(FLOORPLAN_KEY);
+      await writeDB({ name: '360 Tour', description: '', hasFloorPlan: false, order: [], scenes: {} });
       return json(200, { ok: true });
     }
 

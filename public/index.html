@@ -283,9 +283,10 @@
     isPointerDown = true; moved = false;
     downX = e.clientX; downY = e.clientY;
     canvasHost.classList.add('dragging');
+    renderer.domElement.style.cursor = '';
   }
   function onPointerMove(e){
-    if (!isPointerDown) return;
+    if (!isPointerDown){ updateHoverCursor(e); return; }
     const dx = e.clientX - downX, dy = e.clientY - downY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
     targetLon -= dx * 0.13;
@@ -304,12 +305,22 @@
     camera.updateProjectionMatrix();
   }
 
-  function handleClick(clientX, clientY){
+  function hotspotHitsAt(clientX, clientY){
     const rect = renderer.domElement.getBoundingClientRect();
     mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObjects(hotspotSprites.map(h => h.mesh));
+    return raycaster.intersectObjects(hotspotSprites.map(h => h.mesh));
+  }
+
+  function updateHoverCursor(e){
+    if (!hotspotSprites.length){ renderer.domElement.style.cursor = 'grab'; return; }
+    const hits = hotspotHitsAt(e.clientX, e.clientY);
+    renderer.domElement.style.cursor = hits.length ? 'pointer' : 'grab';
+  }
+
+  function handleClick(clientX, clientY){
+    const hits = hotspotHitsAt(clientX, clientY);
     if (hits.length){
       const hit = hotspotSprites.find(h => h.mesh === hits[0].object);
       if (hit) switchScene(hit.hotspot.target);
@@ -323,18 +334,23 @@
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0,0,size,size);
     ctx.beginPath();
-    ctx.arc(size/2, size/2, size/2 - 10, 0, Math.PI*2);
-    ctx.strokeStyle = 'rgba(233,231,224,0.85)';
+    ctx.arc(size/2, size/2, size/2 - 6, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(233,231,224,0.35)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(size/2, size/2, size/2 - 16, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(233,231,224,0.9)';
     ctx.lineWidth = 6;
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(size/2, size/2, size/2 - 30, 0, Math.PI*2);
+    ctx.arc(size/2, size/2, size/2 - 34, 0, Math.PI*2);
     ctx.fillStyle = '#c08a4e';
     ctx.fill();
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(34, 34, 1);
+    sprite.scale.set(46, 46, 1);
     return sprite;
   }
 
@@ -362,6 +378,10 @@
     const y = 500 * Math.cos(phi);
     const z = 500 * Math.sin(phi) * Math.sin(theta);
     camera.lookAt(x, y, z);
+
+    const pulse = 46 + Math.sin(Date.now() / 400) * 4;
+    hotspotSprites.forEach(h => h.mesh.scale.set(pulse, pulse, 1));
+
     if (renderer) renderer.render(scene3d, camera);
   }
 

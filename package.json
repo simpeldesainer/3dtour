@@ -1,0 +1,14 @@
+{
+  "name": "tour-360-builder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "360 photo tour builder — Express server for self-hosting (e.g. Raspberry Pi), with a matching Netlify Functions API.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^7.3.0",
+    "express": "^4.22.2"
+  }
+}

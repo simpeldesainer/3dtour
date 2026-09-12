@@ -10,15 +10,18 @@ const { getStore, connectLambda } = require('@netlify/blobs');
 
 const EDIT_KEY = process.env.EDIT_KEY || '';
 const FLOORPLAN_KEY = 'floorplan';
+const MUSIC_KEY = 'music';
 
 function dbStore() { return getStore('tour-db'); }
 function imageStore() { return getStore('tour-images'); }
 
 async function readDB() {
   const raw = await dbStore().get('state', { type: 'json' });
-  const data = raw || { name: '360 Tour', description: '', hasFloorPlan: false, order: [], scenes: {} };
+  const data = raw || { name: '360 Tour', description: '', hasFloorPlan: false, hasMusic: false, musicType: '', order: [], scenes: {} };
   if (typeof data.description !== 'string') data.description = '';
   if (typeof data.hasFloorPlan !== 'boolean') data.hasFloorPlan = false;
+  if (typeof data.hasMusic !== 'boolean') data.hasMusic = false;
+  if (typeof data.musicType !== 'string') data.musicType = '';
   return data;
 }
 async function writeDB(data) {
@@ -94,6 +97,44 @@ exports.handler = async (event) => {
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' },
+        body: Buffer.from(buf).toString('base64'),
+        isBase64Encoded: true
+      };
+    }
+
+    // POST /api/music
+    if (segments[0] === 'music' && segments.length === 1 && method === 'POST') {
+      const { dataUrl } = JSON.parse(event.body || '{}');
+      const match = typeof dataUrl === 'string' && dataUrl.match(/^data:([^;]+);base64,(.*)$/s);
+      if (!match || !match[1].startsWith('audio/')) return json(400, { error: 'invalid-audio' });
+      const buffer = Buffer.from(match[2], 'base64');
+      await imageStore().set(MUSIC_KEY, buffer);
+      const data = await readDB();
+      data.hasMusic = true;
+      data.musicType = match[1];
+      await writeDB(data);
+      return json(200, { ok: true });
+    }
+
+    // DELETE /api/music
+    if (segments[0] === 'music' && segments.length === 1 && method === 'DELETE') {
+      await imageStore().delete(MUSIC_KEY);
+      const data = await readDB();
+      data.hasMusic = false;
+      data.musicType = '';
+      await writeDB(data);
+      return json(200, { ok: true });
+    }
+
+    // GET /api/music
+    if (segments[0] === 'music' && segments.length === 1 && method === 'GET') {
+      const data = await readDB();
+      if (!data.hasMusic) return { statusCode: 404, body: 'Not found' };
+      const buf = await imageStore().get(MUSIC_KEY, { type: 'arrayBuffer' });
+      if (!buf) return { statusCode: 404, body: 'Not found' };
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': data.musicType || 'audio/mpeg', 'Cache-Control': 'public, max-age=3600' },
         body: Buffer.from(buf).toString('base64'),
         isBase64Encoded: true
       };
@@ -177,7 +218,8 @@ exports.handler = async (event) => {
       const data = await readDB();
       for (const id of data.order) await imageStore().delete(id);
       await imageStore().delete(FLOORPLAN_KEY);
-      await writeDB({ name: '360 Tour', description: '', hasFloorPlan: false, order: [], scenes: {} });
+      await imageStore().delete(MUSIC_KEY);
+      await writeDB({ name: '360 Tour', description: '', hasFloorPlan: false, hasMusic: false, musicType: '', order: [], scenes: {} });
       return json(200, { ok: true });
     }
 

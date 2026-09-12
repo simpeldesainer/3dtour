@@ -20,9 +20,16 @@ the viewer immediately.
   attach a single image (ideally a transparent PNG) and it appears as a small
   overlay in the top-left corner of both the editor and the public viewer.
   Replace or remove it any time.
+- **Background music.** Under "Background music (optional)" in the editor,
+  attach one audio file (keep it under 4MB — a short, looped track works best,
+  since larger files can fail on some hosts). A speaker/note button appears in
+  the viewer; visitors tap it to start looping music — browsers block
+  autoplay with sound, so it's opt-in by design rather than a bug.
 - **Mobile-friendly layout.** The viewer works full-screen on phones, with
-  larger touch targets and a layout that adapts to narrow screens. The editor's
-  sidebar stacks above the viewer on small screens instead of squeezing it.
+  larger touch targets and a layout that adapts to narrow screens, including a
+  fix for the classic mobile bug where the browser's address bar caused the
+  bottom thumbnail strip to get cut off. The editor's sidebar stacks above the
+  viewer on small screens instead of squeezing it.
 - **Gyroscope look control.** On phones that support it, a compass button
   appears bottom-right in the viewer. Tap it (iPhones will ask for a one-time
   motion permission) to look around by physically moving the phone instead of

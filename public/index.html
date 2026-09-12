@@ -29,7 +29,7 @@
     font-size: 12px; line-height: 1.5; padding: 10px 16px; text-align: center;
   }
 
-  #viewer-wrap{ position: relative; width: 100vw; height: 100vh; background: #000; }
+  #viewer-wrap{ position: relative; width: 100vw; height: 100vh; height: calc(var(--vh, 1vh) * 100); background: #000; }
   #canvas-host{ position: absolute; inset: 0; touch-action: none; }
   #canvas-host canvas{ display:block; cursor: grab; }
   #canvas-host.dragging canvas{ cursor: grabbing; }
@@ -67,24 +67,27 @@
     pointer-events: none; text-align: center; max-width: 60%; z-index: 5;
   }
 
-  /* ---------- Gyro toggle ---------- */
-  #gyro-btn{
+  /* ---------------- Floating controls ---------------- */
+  #gyro-btn, #music-btn{
     position: absolute; z-index: 6;
-    right: 16px; bottom: 118px;
+    right: 16px;
     width: 46px; height: 46px; border-radius: 50%;
     background: rgba(18,21,26,0.65); backdrop-filter: blur(6px);
     border: 1px solid rgba(255,255,255,0.12);
-    color: var(--text); font-size: 20px;
+    color: var(--text); font-size: 19px;
     display:flex; align-items:center; justify-content:center;
     cursor: pointer;
   }
-  #gyro-btn.active{ background: var(--accent); color: #1a1408; border-color: var(--accent); }
-  #gyro-btn.hidden{ display:none; }
+  #gyro-btn{ bottom: calc(118px + env(safe-area-inset-bottom, 0px)); }
+  #music-btn{ bottom: calc(172px + env(safe-area-inset-bottom, 0px)); }
+  #gyro-btn.active, #music-btn.active{ background: var(--accent); color: #1a1408; border-color: var(--accent); }
+  #gyro-btn.hidden, #music-btn.hidden{ display:none; }
 
   /* ---------- Bottom thumbnail strip ---------- */
   #thumb-strip{
     position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
-    display:flex; gap: 10px; padding: 14px 16px;
+    display:flex; gap: 10px;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
     overflow-x: auto; -webkit-overflow-scrolling: touch;
     background: linear-gradient(to top, rgba(0,0,0,0.65), rgba(0,0,0,0));
   }
@@ -132,8 +135,9 @@
     #project-chip .pdesc{ display: none; }
     #hint{ font-size: 11px; max-width: 80%; }
     .thumb{ width: 84px; height: 54px; }
-    #thumb-strip{ padding: 10px 10px; gap: 8px; }
-    #gyro-btn{ bottom: 96px; right: 12px; width: 44px; height: 44px; }
+    #thumb-strip{ padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px)); gap: 8px; }
+    #gyro-btn{ bottom: calc(96px + env(safe-area-inset-bottom, 0px)); right: 12px; width: 44px; height: 44px; }
+    #music-btn{ bottom: calc(148px + env(safe-area-inset-bottom, 0px)); right: 12px; width: 44px; height: 44px; }
   }
 </style>
 </head>
@@ -159,6 +163,8 @@
   </div>
   <div id="hint" class="hidden"></div>
   <button id="gyro-btn" class="hidden" title="Look around by moving your phone">&#8635;</button>
+  <button id="music-btn" class="hidden" title="Play background music">&#9834;</button>
+  <audio id="bg-audio" loop preload="none"></audio>
 
   <div id="thumb-strip" class="hidden"></div>
 
@@ -168,6 +174,19 @@
 
 <script>
 (function(){
+
+  /* ---------------- Mobile viewport height fix ---------------- */
+  // Mobile browsers report 100vh as the height *without* the address bar
+  // collapsed, which pushes bottom-fixed UI (the thumbnail strip) off-screen.
+  // This keeps a real, always-current viewport height in a CSS variable.
+  function setViewportHeight(){
+    const h = (window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01;
+    document.documentElement.style.setProperty('--vh', h + 'px');
+  }
+  setViewportHeight();
+  window.addEventListener('resize', setViewportHeight);
+  window.addEventListener('orientationchange', setViewportHeight);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', setViewportHeight);
 
   /* ---------------- API ---------------- */
   async function api(url){
@@ -187,7 +206,7 @@
   }
 
   /* ---------------- State ---------------- */
-  let meta = { name: '360 Tour', description: '', hasFloorPlan: false, order: [] };
+  let meta = { name: '360 Tour', description: '', hasFloorPlan: false, hasMusic: false, order: [] };
   let scenes = {};
   let currentId = null;
 
@@ -205,6 +224,8 @@
   const floorplanImg = document.getElementById('floorplan-img');
   const thumbStrip = document.getElementById('thumb-strip');
   const gyroBtn = document.getElementById('gyro-btn');
+  const musicBtn = document.getElementById('music-btn');
+  const bgAudio = document.getElementById('bg-audio');
 
   function toast(msg){
     toastEl.textContent = msg;
@@ -224,6 +245,7 @@
       name: res.data.name,
       description: res.data.description || '',
       hasFloorPlan: !!res.data.hasFloorPlan,
+      hasMusic: !!res.data.hasMusic,
       order: res.data.order || []
     };
     scenes = res.data.scenes || {};
@@ -237,6 +259,11 @@
     if (meta.hasFloorPlan){
       floorplanImg.src = '/api/floorplan?v=' + Date.now();
       floorplanWrap.classList.remove('hidden');
+    }
+
+    if (meta.hasMusic){
+      bgAudio.src = '/api/music';
+      musicBtn.classList.remove('hidden');
     }
 
     renderThumbs();
@@ -528,6 +555,19 @@
     updateHint();
   }
   gyroBtn.addEventListener('click', () => { gyroEnabled ? disableGyro() : enableGyro(); });
+
+  /* ---------------- Background music ---------------- */
+  musicBtn.addEventListener('click', () => {
+    if (bgAudio.paused){
+      bgAudio.play().then(() => {
+        musicBtn.classList.add('active');
+        musicBtn.innerHTML = '&#9834;';
+      }).catch(() => toast('Could not play the music.'));
+    } else {
+      bgAudio.pause();
+      musicBtn.classList.remove('active');
+    }
+  });
 
   /* ---------------- Boot ---------------- */
   loadAll();

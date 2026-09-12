@@ -94,6 +94,8 @@
     background: repeating-conic-gradient(#20242c 0% 25%, #1b1f26 0% 50%) 0 0 / 14px 14px;
   }
   #floorplan-preview img{ display:block; width: 100%; max-height: 110px; object-fit: contain; }
+  #music-section{ padding: 12px; border-top: 1px solid var(--line); display:flex; flex-direction: column; gap: 8px; }
+  #music-preview{ width: 100%; height: 32px; }
   .btn{
     display:flex; align-items:center; justify-content:center; gap: 7px;
     padding: 9px 12px; border-radius: var(--radius); border: 1px solid var(--line);
@@ -198,6 +200,12 @@
       <button class="btn" id="floorplan-btn">+ Attach floor plan</button>
       <button class="btn-text hidden" id="floorplan-remove-btn">Remove floor plan</button>
     </div>
+    <div id="music-section">
+      <p class="field-label">Background music (optional)</p>
+      <audio id="music-preview" class="hidden" controls></audio>
+      <button class="btn" id="music-btn">+ Add background music</button>
+      <button class="btn-text hidden" id="music-remove-btn">Remove music</button>
+    </div>
     <div id="sidebar-foot">
       <button class="btn btn-primary" id="add-scene-btn">+ Add 360 photo</button>
       <a class="btn-text" id="view-public-link" href="/" target="_blank" rel="noopener">View public tour &#8599;</a>
@@ -234,6 +242,7 @@
 
 <input type="file" id="file-input" accept="image/*" class="hidden">
 <input type="file" id="floorplan-input" accept="image/*" class="hidden">
+<input type="file" id="music-input" accept="audio/*" class="hidden">
 
 <div id="modal-backdrop" class="hidden">
   <div id="modal"></div>
@@ -333,6 +342,10 @@
   const floorplanPreviewImg = document.getElementById('floorplan-preview-img');
   const floorplanOverlay = document.getElementById('floorplan-overlay');
   const floorplanOverlayImg = document.getElementById('floorplan-overlay-img');
+  const musicInput = document.getElementById('music-input');
+  const musicBtn = document.getElementById('music-btn');
+  const musicRemoveBtn = document.getElementById('music-remove-btn');
+  const musicPreview = document.getElementById('music-preview');
 
   function toast(msg){
     toastEl.textContent = msg;
@@ -356,6 +369,7 @@
     projectDescInput.value = meta.description;
     document.title = meta.name + ' — Editor';
     applyFloorPlanState(!!res.data.hasFloorPlan);
+    applyMusicState(!!res.data.hasMusic);
     if (meta.order.length){
       currentId = meta.order[0];
       renderSidebar();
@@ -646,6 +660,67 @@
     applyFloorPlanState(false);
   });
 
+  const MAX_AUDIO_BYTES = 4 * 1024 * 1024; // keeps the upload safely under hosting request limits
+
+  function applyMusicState(hasMusic){
+    if (hasMusic){
+      musicPreview.src = '/api/music?v=' + Date.now();
+      musicPreview.classList.remove('hidden');
+      musicBtn.textContent = 'Replace music';
+      musicRemoveBtn.classList.remove('hidden');
+    } else {
+      musicPreview.removeAttribute('src');
+      musicPreview.classList.add('hidden');
+      musicBtn.textContent = '+ Add background music';
+      musicRemoveBtn.classList.add('hidden');
+    }
+  }
+
+  function fileToDataURL(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('read-failed'));
+      reader.onload = (e) => resolve(e.target.result);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  musicBtn.addEventListener('click', () => musicInput.click());
+  musicInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    musicInput.value = '';
+    if (!file || !file.type.startsWith('audio/')){
+      toast('Please choose an audio file.');
+      return;
+    }
+    if (file.size > MAX_AUDIO_BYTES){
+      toast('That file is too large — please use a track under 4MB (a short loop works best).');
+      return;
+    }
+    loadingEl.textContent = 'Uploading music…';
+    loadingEl.classList.remove('hidden');
+    try{
+      const dataUrl = await fileToDataURL(file);
+      const res = await apiEditor('POST', '/api/music', { dataUrl });
+      if (!res.ok){
+        toast('Could not upload the music.');
+      } else {
+        applyMusicState(true);
+      }
+    } catch(err){
+      toast('Could not process that file.');
+    } finally {
+      loadingEl.classList.add('hidden');
+    }
+  });
+  musicRemoveBtn.addEventListener('click', async () => {
+    const proceed = await confirmToast('Remove the background music?');
+    if (!proceed) return;
+    const res = await apiEditor('DELETE', '/api/music');
+    if (!res.ok){ toast('Could not remove the music.'); return; }
+    applyMusicState(false);
+  });
+
   async function handleFile(file){
     if (!file || !file.type.startsWith('image/')){
       toast('Please choose an image file.');
@@ -691,9 +766,13 @@
       onConfirm: async () => {
         const res = await apiEditor('DELETE', '/api/tour');
         if (!res.ok){ toast('Could not clear the tour.'); return; }
-        meta = { name: '360 Tour', order: [] };
+        meta = { name: '360 Tour', description: '', order: [] };
         scenes = {};
         currentId = null;
+        projectNameInput.value = meta.name;
+        projectDescInput.value = meta.description;
+        applyFloorPlanState(false);
+        applyMusicState(false);
         renderSidebar();
         showEmpty();
       },

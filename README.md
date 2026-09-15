@@ -20,6 +20,9 @@ the viewer immediately.
   attach a single image (ideally a transparent PNG) and it appears as a small
   overlay in the top-left corner of both the editor and the public viewer.
   Replace or remove it any time.
+- **Logo overlay.** Same idea, top-right corner instead of top-left — under
+  "Logo (optional)" in the editor. It sits just above the project name so the
+  two don't overlap.
 - **Background music.** Under "Background music (optional)" in the editor,
   attach one audio file (keep it under 4MB — a short, looped track works best,
   since larger files can fail on some hosts). A speaker/note button appears in

@@ -21,18 +21,20 @@ const DATA_DIR = path.join(__dirname, 'data');
 const IMAGES_DIR = path.join(DATA_DIR, 'images');
 const DB_FILE = path.join(DATA_DIR, 'tour.json');
 const FLOORPLAN_FILE = path.join(IMAGES_DIR, 'floorplan.png');
+const LOGO_FILE = path.join(IMAGES_DIR, 'logo.png');
 const MUSIC_FILE = path.join(IMAGES_DIR, 'music.bin');
 const EDIT_KEY = process.env.EDIT_KEY || '';
 
 fs.mkdirSync(IMAGES_DIR, { recursive: true });
 if (!fs.existsSync(DB_FILE)) {
-  fs.writeFileSync(DB_FILE, JSON.stringify({ name: '360 Tour', description: '', hasFloorPlan: false, hasMusic: false, musicType: '', order: [], scenes: {} }, null, 2));
+  fs.writeFileSync(DB_FILE, JSON.stringify({ name: '360 Tour', description: '', hasFloorPlan: false, hasLogo: false, hasMusic: false, musicType: '', order: [], scenes: {} }, null, 2));
 }
 
 function readDB() {
   const db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
   if (typeof db.description !== 'string') db.description = '';
   if (typeof db.hasFloorPlan !== 'boolean') db.hasFloorPlan = false;
+  if (typeof db.hasLogo !== 'boolean') db.hasLogo = false;
   if (typeof db.hasMusic !== 'boolean') db.hasMusic = false;
   if (typeof db.musicType !== 'string') db.musicType = '';
   return db;
@@ -56,7 +58,7 @@ app.get('/editor', (req, res) => res.sendFile(path.join(__dirname, 'public', 'ed
 
 app.get('/api/state', (req, res) => {
   const db = readDB();
-  res.json({ name: db.name, description: db.description, hasFloorPlan: db.hasFloorPlan, hasMusic: db.hasMusic, order: db.order, scenes: db.scenes });
+  res.json({ name: db.name, description: db.description, hasFloorPlan: db.hasFloorPlan, hasLogo: db.hasLogo, hasMusic: db.hasMusic, order: db.order, scenes: db.scenes });
 });
 
 app.get('/api/images/:id', (req, res) => {
@@ -70,6 +72,12 @@ app.get('/api/floorplan', (req, res) => {
   if (!fs.existsSync(FLOORPLAN_FILE)) return res.status(404).end();
   res.setHeader('Cache-Control', 'public, max-age=3600');
   res.sendFile(FLOORPLAN_FILE);
+});
+
+app.get('/api/logo', (req, res) => {
+  if (!fs.existsSync(LOGO_FILE)) return res.status(404).end();
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.sendFile(LOGO_FILE);
 });
 
 app.get('/api/music', (req, res) => {
@@ -108,6 +116,27 @@ app.delete('/api/floorplan', requireEditKey, (req, res) => {
   if (fs.existsSync(FLOORPLAN_FILE)) fs.unlinkSync(FLOORPLAN_FILE);
   const db = readDB();
   db.hasFloorPlan = false;
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.post('/api/logo', requireEditKey, (req, res) => {
+  const { dataUrl } = req.body || {};
+  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+    return res.status(400).json({ error: 'invalid-image' });
+  }
+  const buffer = Buffer.from(dataUrl.split(',')[1], 'base64');
+  fs.writeFileSync(LOGO_FILE, buffer);
+  const db = readDB();
+  db.hasLogo = true;
+  writeDB(db);
+  res.json({ ok: true });
+});
+
+app.delete('/api/logo', requireEditKey, (req, res) => {
+  if (fs.existsSync(LOGO_FILE)) fs.unlinkSync(LOGO_FILE);
+  const db = readDB();
+  db.hasLogo = false;
   writeDB(db);
   res.json({ ok: true });
 });
@@ -212,8 +241,9 @@ app.delete('/api/tour', requireEditKey, (req, res) => {
     if (fs.existsSync(p)) fs.unlinkSync(p);
   });
   if (fs.existsSync(FLOORPLAN_FILE)) fs.unlinkSync(FLOORPLAN_FILE);
+  if (fs.existsSync(LOGO_FILE)) fs.unlinkSync(LOGO_FILE);
   if (fs.existsSync(MUSIC_FILE)) fs.unlinkSync(MUSIC_FILE);
-  writeDB({ name: '360 Tour', description: '', hasFloorPlan: false, hasMusic: false, musicType: '', order: [], scenes: {} });
+  writeDB({ name: '360 Tour', description: '', hasFloorPlan: false, hasLogo: false, hasMusic: false, musicType: '', order: [], scenes: {} });
   res.json({ ok: true });
 });
 

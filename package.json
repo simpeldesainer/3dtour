@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "@netlify/blobs": "^7.3.0",
-    "express": "^4.22.2"
+    "express": "^4.22.3"
   }
 }

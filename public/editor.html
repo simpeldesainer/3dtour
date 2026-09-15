@@ -94,6 +94,12 @@
     background: repeating-conic-gradient(#20242c 0% 25%, #1b1f26 0% 50%) 0 0 / 14px 14px;
   }
   #floorplan-preview img{ display:block; width: 100%; max-height: 110px; object-fit: contain; }
+  #logo-section{ padding: 12px; border-top: 1px solid var(--line); display:flex; flex-direction: column; gap: 8px; }
+  #logo-preview{
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 8px;
+    background: repeating-conic-gradient(#20242c 0% 25%, #1b1f26 0% 50%) 0 0 / 14px 14px;
+  }
+  #logo-preview img{ display:block; width: 100%; max-height: 90px; object-fit: contain; }
   #music-section{ padding: 12px; border-top: 1px solid var(--line); display:flex; flex-direction: column; gap: 8px; }
   #music-preview{ width: 100%; height: 32px; }
   .btn{
@@ -177,6 +183,12 @@
     filter: drop-shadow(0 2px 10px rgba(0,0,0,0.6));
   }
   #floorplan-overlay img{ display:block; width: 100%; height: auto; }
+  #logo-overlay{
+    position: absolute; top: 60px; right: 16px; z-index: 5;
+    max-width: 130px; pointer-events: none;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+  }
+  #logo-overlay img{ display:block; width: 100%; height: auto; }
 
   ::-webkit-scrollbar{ width: 8px; }
   ::-webkit-scrollbar-thumb{ background: var(--panel-hi); border-radius: 4px; }
@@ -199,6 +211,12 @@
       <div id="floorplan-preview" class="hidden"><img id="floorplan-preview-img" alt="Floor plan"></div>
       <button class="btn" id="floorplan-btn">+ Attach floor plan</button>
       <button class="btn-text hidden" id="floorplan-remove-btn">Remove floor plan</button>
+    </div>
+    <div id="logo-section">
+      <p class="field-label">Logo (optional)</p>
+      <div id="logo-preview" class="hidden"><img id="logo-preview-img" alt="Logo"></div>
+      <button class="btn" id="logo-btn">+ Attach logo</button>
+      <button class="btn-text hidden" id="logo-remove-btn">Remove logo</button>
     </div>
     <div id="music-section">
       <p class="field-label">Background music (optional)</p>
@@ -225,6 +243,7 @@
     <div id="canvas-host" class="hidden"></div>
     <div id="fade"></div>
     <div id="floorplan-overlay" class="hidden"><img id="floorplan-overlay-img" alt="Floor plan"></div>
+    <div id="logo-overlay" class="hidden"><img id="logo-overlay-img" alt="Logo"></div>
 
     <div id="topbar" class="hidden">
       <span id="scene-label"></span>
@@ -242,6 +261,7 @@
 
 <input type="file" id="file-input" accept="image/*" class="hidden">
 <input type="file" id="floorplan-input" accept="image/*" class="hidden">
+<input type="file" id="logo-input" accept="image/*" class="hidden">
 <input type="file" id="music-input" accept="audio/*" class="hidden">
 
 <div id="modal-backdrop" class="hidden">
@@ -342,6 +362,13 @@
   const floorplanPreviewImg = document.getElementById('floorplan-preview-img');
   const floorplanOverlay = document.getElementById('floorplan-overlay');
   const floorplanOverlayImg = document.getElementById('floorplan-overlay-img');
+  const logoInput = document.getElementById('logo-input');
+  const logoBtn = document.getElementById('logo-btn');
+  const logoRemoveBtn = document.getElementById('logo-remove-btn');
+  const logoPreview = document.getElementById('logo-preview');
+  const logoPreviewImg = document.getElementById('logo-preview-img');
+  const logoOverlay = document.getElementById('logo-overlay');
+  const logoOverlayImg = document.getElementById('logo-overlay-img');
   const musicInput = document.getElementById('music-input');
   const musicBtn = document.getElementById('music-btn');
   const musicRemoveBtn = document.getElementById('music-remove-btn');
@@ -369,6 +396,7 @@
     projectDescInput.value = meta.description;
     document.title = meta.name + ' — Editor';
     applyFloorPlanState(!!res.data.hasFloorPlan);
+    applyLogoState(!!res.data.hasLogo);
     applyMusicState(!!res.data.hasMusic);
     if (meta.order.length){
       currentId = meta.order[0];
@@ -660,6 +688,55 @@
     applyFloorPlanState(false);
   });
 
+  function applyLogoState(hasLogo){
+    if (hasLogo){
+      const src = '/api/logo?v=' + Date.now();
+      logoPreviewImg.src = src;
+      logoOverlayImg.src = src;
+      logoPreview.classList.remove('hidden');
+      logoOverlay.classList.remove('hidden');
+      logoBtn.textContent = 'Replace logo';
+      logoRemoveBtn.classList.remove('hidden');
+    } else {
+      logoPreview.classList.add('hidden');
+      logoOverlay.classList.add('hidden');
+      logoBtn.textContent = '+ Attach logo';
+      logoRemoveBtn.classList.add('hidden');
+    }
+  }
+
+  logoBtn.addEventListener('click', () => logoInput.click());
+  logoInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    logoInput.value = '';
+    if (!file || !file.type.startsWith('image/')){
+      toast('Please choose an image file.');
+      return;
+    }
+    loadingEl.textContent = 'Processing logo…';
+    loadingEl.classList.remove('hidden');
+    try{
+      const dataUrl = await fileToPngDataURL(file);
+      const res = await apiEditor('POST', '/api/logo', { dataUrl });
+      if (!res.ok){
+        toast('Could not upload the logo.');
+      } else {
+        applyLogoState(true);
+      }
+    } catch(err){
+      toast('Could not process that image.');
+    } finally {
+      loadingEl.classList.add('hidden');
+    }
+  });
+  logoRemoveBtn.addEventListener('click', async () => {
+    const proceed = await confirmToast('Remove the logo?');
+    if (!proceed) return;
+    const res = await apiEditor('DELETE', '/api/logo');
+    if (!res.ok){ toast('Could not remove the logo.'); return; }
+    applyLogoState(false);
+  });
+
   const MAX_AUDIO_BYTES = 4 * 1024 * 1024; // keeps the upload safely under hosting request limits
 
   function applyMusicState(hasMusic){
@@ -772,6 +849,7 @@
         projectNameInput.value = meta.name;
         projectDescInput.value = meta.description;
         applyFloorPlanState(false);
+        applyLogoState(false);
         applyMusicState(false);
         renderSidebar();
         showEmpty();

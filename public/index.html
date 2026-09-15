@@ -51,13 +51,23 @@
   #floorplan-wrap img{ display:block; width: 100%; height: auto; }
 
   #project-chip{
-    position: absolute; top: 16px; right: 16px; z-index: 5;
     background: rgba(18,21,26,0.55); backdrop-filter: blur(6px);
     padding: 8px 13px; border-radius: var(--radius);
-    max-width: 46%; text-align: right; pointer-events: none;
+    max-width: 100%; text-align: right; pointer-events: none;
   }
   #project-chip .pname{ font-size: 14px; font-weight: 600; margin: 0; }
   #project-chip .pdesc{ font-size: 11.5px; color: var(--text-dim); margin: 3px 0 0 0; line-height: 1.4; }
+
+  #top-right-stack{
+    position: absolute; top: 16px; right: 16px; z-index: 5;
+    max-width: 46%;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  }
+  #logo-wrap{
+    max-width: 150px; pointer-events: none;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+  }
+  #logo-wrap img{ display:block; width: 100%; height: auto; }
 
   /* ---------- Hint ---------- */
   #hint{
@@ -130,7 +140,9 @@
   /* ---------- Mobile ---------- */
   @media (max-width: 640px){
     #floorplan-wrap{ max-width: 110px; top: 12px; left: 12px; }
-    #project-chip{ top: 12px; right: 12px; padding: 6px 10px; max-width: 52%; }
+    #top-right-stack{ top: 12px; right: 12px; max-width: 52%; }
+    #logo-wrap{ max-width: 90px; }
+    #project-chip{ padding: 6px 10px; }
     #project-chip .pname{ font-size: 12.5px; }
     #project-chip .pdesc{ display: none; }
     #hint{ font-size: 11px; max-width: 80%; }
@@ -157,9 +169,12 @@
   <div id="fade"></div>
 
   <div id="floorplan-wrap" class="hidden"><img id="floorplan-img" alt="Floor plan"></div>
-  <div id="project-chip" class="hidden">
-    <p class="pname" id="project-name"></p>
-    <p class="pdesc" id="project-desc"></p>
+  <div id="top-right-stack">
+    <div id="logo-wrap" class="hidden"><img id="logo-img" alt="Logo"></div>
+    <div id="project-chip" class="hidden">
+      <p class="pname" id="project-name"></p>
+      <p class="pdesc" id="project-desc"></p>
+    </div>
   </div>
   <div id="hint" class="hidden"></div>
   <button id="gyro-btn" class="hidden" title="Look around by moving your phone">&#8635;</button>
@@ -206,7 +221,7 @@
   }
 
   /* ---------------- State ---------------- */
-  let meta = { name: '360 Tour', description: '', hasFloorPlan: false, hasMusic: false, order: [] };
+  let meta = { name: '360 Tour', description: '', hasFloorPlan: false, hasLogo: false, hasMusic: false, order: [] };
   let scenes = {};
   let currentId = null;
 
@@ -222,6 +237,8 @@
   const projectDescEl = document.getElementById('project-desc');
   const floorplanWrap = document.getElementById('floorplan-wrap');
   const floorplanImg = document.getElementById('floorplan-img');
+  const logoWrap = document.getElementById('logo-wrap');
+  const logoImg = document.getElementById('logo-img');
   const thumbStrip = document.getElementById('thumb-strip');
   const gyroBtn = document.getElementById('gyro-btn');
   const musicBtn = document.getElementById('music-btn');
@@ -245,6 +262,7 @@
       name: res.data.name,
       description: res.data.description || '',
       hasFloorPlan: !!res.data.hasFloorPlan,
+      hasLogo: !!res.data.hasLogo,
       hasMusic: !!res.data.hasMusic,
       order: res.data.order || []
     };
@@ -259,6 +277,11 @@
     if (meta.hasFloorPlan){
       floorplanImg.src = '/api/floorplan?v=' + Date.now();
       floorplanWrap.classList.remove('hidden');
+    }
+
+    if (meta.hasLogo){
+      logoImg.src = '/api/logo?v=' + Date.now();
+      logoWrap.classList.remove('hidden');
     }
 
     if (meta.hasMusic){

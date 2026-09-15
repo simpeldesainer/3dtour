@@ -10,6 +10,7 @@ const { getStore, connectLambda } = require('@netlify/blobs');
 
 const EDIT_KEY = process.env.EDIT_KEY || '';
 const FLOORPLAN_KEY = 'floorplan';
+const LOGO_KEY = 'logo';
 const MUSIC_KEY = 'music';
 
 function dbStore() { return getStore('tour-db'); }
@@ -17,9 +18,10 @@ function imageStore() { return getStore('tour-images'); }
 
 async function readDB() {
   const raw = await dbStore().get('state', { type: 'json' });
-  const data = raw || { name: '360 Tour', description: '', hasFloorPlan: false, hasMusic: false, musicType: '', order: [], scenes: {} };
+  const data = raw || { name: '360 Tour', description: '', hasFloorPlan: false, hasLogo: false, hasMusic: false, musicType: '', order: [], scenes: {} };
   if (typeof data.description !== 'string') data.description = '';
   if (typeof data.hasFloorPlan !== 'boolean') data.hasFloorPlan = false;
+  if (typeof data.hasLogo !== 'boolean') data.hasLogo = false;
   if (typeof data.hasMusic !== 'boolean') data.hasMusic = false;
   if (typeof data.musicType !== 'string') data.musicType = '';
   return data;
@@ -93,6 +95,39 @@ exports.handler = async (event) => {
     // GET /api/floorplan
     if (segments[0] === 'floorplan' && segments.length === 1 && method === 'GET') {
       const buf = await imageStore().get(FLOORPLAN_KEY, { type: 'arrayBuffer' });
+      if (!buf) return { statusCode: 404, body: 'Not found' };
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' },
+        body: Buffer.from(buf).toString('base64'),
+        isBase64Encoded: true
+      };
+    }
+
+    // POST /api/logo
+    if (segments[0] === 'logo' && segments.length === 1 && method === 'POST') {
+      const { dataUrl } = JSON.parse(event.body || '{}');
+      if (!dataUrl || !dataUrl.startsWith('data:image/')) return json(400, { error: 'invalid-image' });
+      const buffer = Buffer.from(dataUrl.split(',')[1], 'base64');
+      await imageStore().set(LOGO_KEY, buffer);
+      const data = await readDB();
+      data.hasLogo = true;
+      await writeDB(data);
+      return json(200, { ok: true });
+    }
+
+    // DELETE /api/logo
+    if (segments[0] === 'logo' && segments.length === 1 && method === 'DELETE') {
+      await imageStore().delete(LOGO_KEY);
+      const data = await readDB();
+      data.hasLogo = false;
+      await writeDB(data);
+      return json(200, { ok: true });
+    }
+
+    // GET /api/logo
+    if (segments[0] === 'logo' && segments.length === 1 && method === 'GET') {
+      const buf = await imageStore().get(LOGO_KEY, { type: 'arrayBuffer' });
       if (!buf) return { statusCode: 404, body: 'Not found' };
       return {
         statusCode: 200,
@@ -218,8 +253,9 @@ exports.handler = async (event) => {
       const data = await readDB();
       for (const id of data.order) await imageStore().delete(id);
       await imageStore().delete(FLOORPLAN_KEY);
+      await imageStore().delete(LOGO_KEY);
       await imageStore().delete(MUSIC_KEY);
-      await writeDB({ name: '360 Tour', description: '', hasFloorPlan: false, hasMusic: false, musicType: '', order: [], scenes: {} });
+      await writeDB({ name: '360 Tour', description: '', hasFloorPlan: false, hasLogo: false, hasMusic: false, musicType: '', order: [], scenes: {} });
       return json(200, { ok: true });
     }
 

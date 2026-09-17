@@ -583,28 +583,31 @@
         img.onerror = () => reject(new Error('decode-failed'));
         img.onload = () => {
           let w = img.width, h = img.height;
-          let maxW = 3200;
+          let maxW = 4096; // above this, older/budget phone GPUs can fail to load the texture at all
           if (w > maxW){ h = Math.round(h * maxW / w); w = maxW; }
           const canvas = document.createElement('canvas');
           canvas.width = w; canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, w, h);
 
-          const targetBytes = 2.5 * 1024 * 1024; // keeps the request comfortably under hosting limits
+          // Netlify Functions cap request/response bodies at 6MB; base64 inflates
+          // size by ~1.33x, so ~4.3MB of actual image data is the real ceiling.
+          // Staying at 4.0MB leaves a safety margin.
+          const targetBytes = 4.0 * 1024 * 1024;
           const sizeOf = (du) => Math.round((du.length - du.indexOf(',') - 1) * 0.75);
 
-          let quality = 0.85;
+          let quality = 0.92;
           let dataUrl = canvas.toDataURL('image/jpeg', quality);
-          while (sizeOf(dataUrl) > targetBytes && quality > 0.35){
-            quality -= 0.1;
+          while (sizeOf(dataUrl) > targetBytes && quality > 0.55){
+            quality -= 0.07;
             dataUrl = canvas.toDataURL('image/jpeg', quality);
           }
           // If quality alone isn't enough, also shrink dimensions.
-          while (sizeOf(dataUrl) > targetBytes && w > 1200){
-            w = Math.round(w * 0.85); h = Math.round(h * 0.85);
+          while (sizeOf(dataUrl) > targetBytes && w > 2000){
+            w = Math.round(w * 0.9); h = Math.round(h * 0.9);
             canvas.width = w; canvas.height = h;
             ctx.drawImage(img, 0, 0, w, h);
-            dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+            dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           }
           resolve(dataUrl);
         };

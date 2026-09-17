@@ -89,17 +89,7 @@
 
   #sidebar-foot{ padding: 12px; border-top: 1px solid var(--line); display:flex; flex-direction: column; gap: 8px; }
   #floorplan-section{ padding: 12px; border-top: 1px solid var(--line); display:flex; flex-direction: column; gap: 8px; }
-  #floorplan-preview{
-    border: 1px solid var(--line); border-radius: var(--radius); padding: 8px;
-    background: repeating-conic-gradient(#20242c 0% 25%, #1b1f26 0% 50%) 0 0 / 14px 14px;
-  }
-  #floorplan-preview img{ display:block; width: 100%; max-height: 110px; object-fit: contain; }
   #logo-section{ padding: 12px; border-top: 1px solid var(--line); display:flex; flex-direction: column; gap: 8px; }
-  #logo-preview{
-    border: 1px solid var(--line); border-radius: var(--radius); padding: 8px;
-    background: repeating-conic-gradient(#20242c 0% 25%, #1b1f26 0% 50%) 0 0 / 14px 14px;
-  }
-  #logo-preview img{ display:block; width: 100%; max-height: 90px; object-fit: contain; }
   #music-section{ padding: 12px; border-top: 1px solid var(--line); display:flex; flex-direction: column; gap: 8px; }
   #music-preview{ width: 100%; height: 32px; }
   .btn{
@@ -208,13 +198,11 @@
     <div id="scene-list"></div>
     <div id="floorplan-section">
       <p class="field-label">Floor plan (optional)</p>
-      <div id="floorplan-preview" class="hidden"><img id="floorplan-preview-img" alt="Floor plan"></div>
       <button class="btn" id="floorplan-btn">+ Attach floor plan</button>
       <button class="btn-text hidden" id="floorplan-remove-btn">Remove floor plan</button>
     </div>
     <div id="logo-section">
       <p class="field-label">Logo (optional)</p>
-      <div id="logo-preview" class="hidden"><img id="logo-preview-img" alt="Logo"></div>
       <button class="btn" id="logo-btn">+ Attach logo</button>
       <button class="btn-text hidden" id="logo-remove-btn">Remove logo</button>
     </div>
@@ -358,15 +346,11 @@
   const floorplanInput = document.getElementById('floorplan-input');
   const floorplanBtn = document.getElementById('floorplan-btn');
   const floorplanRemoveBtn = document.getElementById('floorplan-remove-btn');
-  const floorplanPreview = document.getElementById('floorplan-preview');
-  const floorplanPreviewImg = document.getElementById('floorplan-preview-img');
   const floorplanOverlay = document.getElementById('floorplan-overlay');
   const floorplanOverlayImg = document.getElementById('floorplan-overlay-img');
   const logoInput = document.getElementById('logo-input');
   const logoBtn = document.getElementById('logo-btn');
   const logoRemoveBtn = document.getElementById('logo-remove-btn');
-  const logoPreview = document.getElementById('logo-preview');
-  const logoPreviewImg = document.getElementById('logo-preview-img');
   const logoOverlay = document.getElementById('logo-overlay');
   const logoOverlayImg = document.getElementById('logo-overlay-img');
   const musicInput = document.getElementById('music-input');
@@ -583,7 +567,7 @@
         img.onerror = () => reject(new Error('decode-failed'));
         img.onload = () => {
           let w = img.width, h = img.height;
-          let maxW = 4096; // above this, older/budget phone GPUs can fail to load the texture at all
+          let maxW = 8000; // raised per request — see the compatibility trade-off noted in chat
           if (w > maxW){ h = Math.round(h * maxW / w); w = maxW; }
           const canvas = document.createElement('canvas');
           canvas.width = w; canvas.height = h;
@@ -644,15 +628,11 @@
 
   function applyFloorPlanState(hasFloorPlan){
     if (hasFloorPlan){
-      const src = '/api/floorplan?v=' + Date.now();
-      floorplanPreviewImg.src = src;
-      floorplanOverlayImg.src = src;
-      floorplanPreview.classList.remove('hidden');
+      floorplanOverlayImg.src = '/api/floorplan?v=' + Date.now();
       floorplanOverlay.classList.remove('hidden');
       floorplanBtn.textContent = 'Replace floor plan';
       floorplanRemoveBtn.classList.remove('hidden');
     } else {
-      floorplanPreview.classList.add('hidden');
       floorplanOverlay.classList.add('hidden');
       floorplanBtn.textContent = '+ Attach floor plan';
       floorplanRemoveBtn.classList.add('hidden');
@@ -693,15 +673,11 @@
 
   function applyLogoState(hasLogo){
     if (hasLogo){
-      const src = '/api/logo?v=' + Date.now();
-      logoPreviewImg.src = src;
-      logoOverlayImg.src = src;
-      logoPreview.classList.remove('hidden');
+      logoOverlayImg.src = '/api/logo?v=' + Date.now();
       logoOverlay.classList.remove('hidden');
       logoBtn.textContent = 'Replace logo';
       logoRemoveBtn.classList.remove('hidden');
     } else {
-      logoPreview.classList.add('hidden');
       logoOverlay.classList.add('hidden');
       logoBtn.textContent = '+ Attach logo';
       logoRemoveBtn.classList.add('hidden');
